@@ -324,16 +324,25 @@ async def run_bot():
     
     print("Bot handlers configured")
     
-    # Start the bot
-    await app.initialize()
-    await app.start()
-    print("Bot started successfully")
-    
-    # Run the hourly task
-    try:
-        await run_hourly()
-    finally:
-        await app.stop()
+    # Start the bot and run it concurrently with the hourly task
+    async with app:
+        print("Starting both bot and hourly task...")
+        await app.start()
+        print("Bot started successfully")
+        
+        # Create tasks for both the bot polling and hourly updates
+        bot_task = app.run_polling(allowed_updates=Update.ALL_TYPES)
+        hourly_task = run_hourly()
+        
+        # Run both tasks concurrently
+        try:
+            await asyncio.gather(bot_task, hourly_task)
+        except Exception as e:
+            print(f"Error in main loop: {e}")
+        finally:
+            print("Stopping bot...")
+            await app.stop()
+            print("Bot stopped")
 
 if __name__ == "__main__":
     asyncio.run(run_bot())
