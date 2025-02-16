@@ -84,8 +84,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(
             "Hello! I will send you top 5 arbitrage opportunities every hour.\n"
-            "Use /stop to unsubscribe from notifications.\n"
-            "Use /status to check bot status."
+            "Commands:\n"
+            "/check - Check opportunities right now\n"
+            "/stop - Unsubscribe from notifications\n"
+            "/status - Check bot status"
         )
     except Exception as e:
         print(f"ERROR in start_command: {str(e)}")
@@ -111,11 +113,18 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         users = load_subscribed_users()
         current_time = datetime.now().strftime('%H:%M:%S')
         
+        # Вычисляем время до следующего обновления
+        now = datetime.now()
+        next_hour = (now.replace(minute=0, second=0, microsecond=0) + 
+                    timedelta(hours=1))
+        wait_minutes = int((next_hour - now).total_seconds() / 60)
+        
         await update.message.reply_text(
             f"🤖 Bot Status Report\n\n"
             f"Time: {current_time}\n"
             f"Total subscribers: {len(users)}\n"
             f"Your chat ID: {chat_id}\n"
+            f"Next update in: {wait_minutes} minutes\n"
             f"Bot is running! ✅"
         )
     except Exception as e:
@@ -194,6 +203,66 @@ async def get_paradex_funding():
         
         return {data['coin']: data['funding_rate'] for data in all_results}
 
+async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /check command - immediately check arbitrage opportunities"""
+    try:
+        chat_id = update.effective_chat.id
+        print(f"DEBUG: Received /check command from user {chat_id}")
+        
+        # Сначала отправим сообщение о начале проверки
+        await update.message.reply_text("🔍 Checking arbitrage opportunities...")
+        
+        # Получаем данные
+        hyper_data = await get_hyperliquid_funding()
+        para_data = await get_paradex_funding()
+        
+        # Находим арбитражные возможности
+        common_coins = set(hyper_data.keys()) & set(para_data.keys())
+        arbitrage_opportunities = []
+        
+        for coin in common_coins:
+            hyper_rate = hyper_data[coin] * 100
+            para_rate = para_data[coin] * 100
+            difference = abs(hyper_rate - para_rate)
+            
+            if hyper_rate > para_rate:
+                hyper_direction = "short"
+                para_direction = "long"
+            else:
+                hyper_direction = "long"
+                para_direction = "short"
+            
+            arbitrage_opportunities.append({
+                'coin': coin,
+                'hyper_rate': hyper_rate,
+                'para_rate': para_rate,
+                'difference': difference,
+                'hyper_direction': hyper_direction,
+                'para_direction': para_direction
+            })
+        
+        # Сортируем и берем топ-5
+        arbitrage_opportunities.sort(key=lambda x: x['difference'], reverse=True)
+        top_opportunities = arbitrage_opportunities[:5]
+        
+        if top_opportunities:
+            current_time = datetime.now().strftime('%H:%M:%S')
+            message = f"🔄 Top 5 arbitrage opportunities (time: {current_time}):\n\n"
+            
+            for arb in top_opportunities:
+                message += (f"<b>{arb['coin']}</b>\n"
+                          f"Hyperliquid ({arb['hyper_direction']}): {arb['hyper_rate']:+.4f}%\n"
+                          f"Paradex ({arb['para_direction']}): {arb['para_rate']:+.4f}%\n"
+                          f"Difference: {arb['difference']:.4f}%\n\n")
+            
+            await update.message.reply_text(message, parse_mode='HTML')
+        else:
+            await update.message.reply_text("No arbitrage opportunities found at the moment.")
+        
+    except Exception as e:
+        print(f"ERROR in check_command: {str(e)}")
+        await update.message.reply_text("❌ Error checking opportunities. Please try again later.")
+
 async def send_funding_updates():
     """Send funding updates to all subscribers"""
     while True:
@@ -270,7 +339,7 @@ async def send_funding_updates():
         except Exception as e:
             print(f"Error in funding updates: {e}")
         
-        # Wait for next hour
+        # Ждем до следующего часа
         now = datetime.now()
         next_hour = (now.replace(minute=0, second=0, microsecond=0) + 
                     timedelta(hours=1))
@@ -300,6 +369,7 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("stop", stop_command))
     app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("check", check_command))
     
     print("Bot handlers configured")
     
