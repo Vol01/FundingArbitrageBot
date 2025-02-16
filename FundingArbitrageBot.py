@@ -10,7 +10,7 @@ import os
 # Configuration
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 USERS_FILE = os.path.join(SCRIPT_DIR, 'subscribed_users.json')
-TELEGRAM_TOKEN = '7425523497:AAFr8tvxXIbg1JWlwJXwTmwTxE-k0z4nEGk'
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 def load_subscribed_users():
     """Load the list of subscribed users from file"""
