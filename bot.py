@@ -32,9 +32,10 @@ def create_connection():
             (chat_id INTEGER PRIMARY KEY)
         ''')
         conn.commit()
+        print("DEBUG: Database connection created successfully")
         return conn
     except Error as e:
-        print(f"Error connecting to database: {e}")
+        print(f"ERROR connecting to database: {e}")
         return None
 
 def load_subscribed_users():
@@ -45,10 +46,10 @@ def load_subscribed_users():
             cursor = conn.cursor()
             cursor.execute("SELECT chat_id FROM subscribers")
             users = set(row[0] for row in cursor.fetchall())
-            print(f"Loaded {len(users)} users from database")
+            print(f"DEBUG: Loaded {len(users)} users from database: {users}")
             return users
         except Error as e:
-            print(f"Error loading users: {e}")
+            print(f"ERROR loading users: {e}")
             return set()
         finally:
             conn.close()
@@ -64,9 +65,9 @@ def save_subscribed_users(users):
             cursor.executemany("INSERT INTO subscribers (chat_id) VALUES (?)",
                              [(user,) for user in users])
             conn.commit()
-            print(f"Saved {len(users)} users to database")
+            print(f"DEBUG: Saved {len(users)} users to database: {users}")
         except Error as e:
-            print(f"Error saving users: {e}")
+            print(f"ERROR saving users: {e}")
         finally:
             conn.close()
 
@@ -74,39 +75,56 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command"""
     try:
         chat_id = update.effective_chat.id
-        print(f"Received /start command from user {chat_id}")
+        print(f"DEBUG: Received /start command from user {chat_id}")
         
+        # Load current users
         users = load_subscribed_users()
-        users.add(chat_id)
-        save_subscribed_users(users)
+        print(f"DEBUG: Current subscribers before adding new user: {users}")
         
-        print(f"User {chat_id} successfully subscribed")
+        # Add new user
+        users.add(chat_id)
+        print(f"DEBUG: Subscribers after adding new user: {users}")
+        
+        # Save updated users
+        save_subscribed_users(users)
+        print(f"DEBUG: Saved subscribers to database")
+        
+        # Verify save
+        verified_users = load_subscribed_users()
+        print(f"DEBUG: Verified subscribers in database: {verified_users}")
         
         await update.message.reply_text(
             "Hello! I will send you top 5 arbitrage opportunities every hour.\n"
             "Use /stop to unsubscribe from notifications.\n"
             "Use /status to check bot status."
         )
+        print(f"DEBUG: Sent welcome message to user {chat_id}")
+        
     except Exception as e:
-        print(f"Error in start_command: {e}")
+        print(f"ERROR in start_command: {str(e)}")
+        print(f"ERROR type: {type(e)}")
 
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /stop command"""
     try:
         chat_id = update.effective_chat.id
-        print(f"Received /stop command from user {chat_id}")
+        print(f"DEBUG: Received /stop command from user {chat_id}")
         
         users = load_subscribed_users()
-        users.discard(chat_id)
-        save_subscribed_users(users)
+        print(f"DEBUG: Current subscribers before removal: {users}")
         
-        print(f"User {chat_id} successfully unsubscribed")
+        users.discard(chat_id)
+        print(f"DEBUG: Subscribers after removal: {users}")
+        
+        save_subscribed_users(users)
+        print(f"DEBUG: Saved updated subscribers to database")
         
         await update.message.reply_text(
             "You have unsubscribed from notifications. Use /start to subscribe again."
         )
+        print(f"DEBUG: Sent unsubscribe message to user {chat_id}")
     except Exception as e:
-        print(f"Error in stop_command: {e}")
+        print(f"ERROR in stop_command: {str(e)}")
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /status command"""
@@ -122,8 +140,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Your chat ID: {chat_id}\n"
             f"Bot is running! ✅"
         )
+        print(f"DEBUG: Sent status to user {chat_id}")
     except Exception as e:
-        print(f"Error in status_command: {e}")
+        print(f"ERROR in status_command: {str(e)}")
 
 async def get_hyperliquid_funding(session):
     """Get funding data from Hyperliquid"""
@@ -200,11 +219,13 @@ async def send_telegram_message(message):
     """Send message to all subscribed users"""
     try:
         users = load_subscribed_users()
+        print(f"DEBUG: Loaded subscribers for sending message: {users}")
+        
         if not users:
-            print("No subscribed users found!")
+            print("WARNING: No subscribed users found!")
             return
             
-        print(f"Attempting to send message to {len(users)} users")
+        print(f"INFO: Attempting to send message to {len(users)} users")
         
         async with Application.builder().token(TELEGRAM_TOKEN).build() as app:
             for user_id in users:
@@ -214,11 +235,11 @@ async def send_telegram_message(message):
                         text=message,
                         parse_mode='HTML'
                     )
-                    print(f"Successfully sent message to user {user_id}")
+                    print(f"SUCCESS: Sent message to user {user_id}")
                 except Exception as e:
-                    print(f"Error sending to user {user_id}: {e}")
+                    print(f"ERROR: Failed to send to user {user_id}: {str(e)}")
     except Exception as e:
-        print(f"Error in send_telegram_message: {e}")
+        print(f"ERROR in send_telegram_message: {str(e)}")
 
 async def main():
     """Main function to fetch and compare funding rates"""
