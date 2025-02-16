@@ -9,7 +9,7 @@ from sqlite3 import Error
 import os
 
 # Configuration
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_TOKEN = 7425523497:AAFr8tvxXIbg1JWlwJXwTmwTxE-k0z4nEGk # os.getenv('TELEGRAM_TOKEN')
 
 def create_connection():
     """Create a database connection"""
