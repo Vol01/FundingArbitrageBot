@@ -1,1 +1,1 @@
-worker: python FundingArbitrageBot.py
+worker: python bot.py
