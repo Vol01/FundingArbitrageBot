@@ -6,6 +6,59 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import json
 import os
+import sqlite3
+from sqlite3 import Error
+
+def create_connection():
+    """Create a database connection"""
+    try:
+        conn = sqlite3.connect('subscribers.db')
+        # Create table if it doesn't exist
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS subscribers
+            (chat_id INTEGER PRIMARY KEY)
+        ''')
+        conn.commit()
+        return conn
+    except Error as e:
+        print(f"Error connecting to database: {e}")
+        return None
+
+def load_subscribed_users():
+    """Load subscribers from database"""
+    conn = create_connection()
+    if conn is not None:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT chat_id FROM subscribers")
+            users = set(row[0] for row in cursor.fetchall())
+            print(f"Loaded {len(users)} users from database")
+            return users
+        except Error as e:
+            print(f"Error loading users: {e}")
+            return set()
+        finally:
+            conn.close()
+    return set()
+
+def save_subscribed_users(users):
+    """Save subscribers to database"""
+    conn = create_connection()
+    if conn is not None:
+        try:
+            cursor = conn.cursor()
+            # Clear existing subscribers
+            cursor.execute("DELETE FROM subscribers")
+            # Add new subscribers
+            cursor.executemany("INSERT INTO subscribers (chat_id) VALUES (?)",
+                             [(user,) for user in users])
+            conn.commit()
+            print(f"Saved {len(users)} users to database")
+        except Error as e:
+            print(f"Error saving users: {e}")
+        finally:
+            conn.close()
 
 # Configuration
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
